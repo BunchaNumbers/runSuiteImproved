@@ -17,19 +17,37 @@ errFunct(){
 	fi
 }
 
-if [ \( ${#} -lt 2 \) -o \( ${#} -gt 3 \) ]; then
+if [ \( ${#} -lt 2 \) -o \( ${#} -gt 4 \) ]; then
 	errFunct 2
 else
 	while read tst; do
 		input_file=${tst}.in
 		output_file=${tst}.out
 		programParam=${2}
+		checkMethod="normal"
+		checkValgrind=0
+		
+		#Error checking method (currently accepts blank or line)
+		if [ ${#} -eq 2 ]; then
+			checkValgrind=0	
+		elif [ \( -n ${3} \) -a ${3} = "valgrind" ]; then
+			checkValgrind=1
+		elif [ \( -n ${3} \) -a ${3} = "line" ]; then
+			checkMethod="line"
+		else
+			checkMethod="normal"
+		fi
+		#Also check for memory (valgrind)
+		if [ ${#} -eq 4 ]; then
+			checkValgrind=1
+			checkMethod=${3}
+		fi
 
 		if [ -r ${tst}.args ]; then
 			programParam="${2} `cat "${tst}.args"`"
 		fi
 		
-		if [ ${#} -eq 2 ]; then
+		if [ ${checkMethod} = "normal" ]; then
 			if [ ! -r ${input_file} ]; then
 				errFunct 3 ${input_file}
 			elif [ ! -r ${output_file} ]; then
@@ -46,13 +64,11 @@ else
 					echo "${prog_Result}"
 					echo " "
 					echo "Test ${tst} produced errors!"
-					echo " "
 				else
 					echo "Test ${tst} finished with no errors."
-					echo " "
 				fi
 			fi
-		elif [ ${#} -eq 3 -a ${3} = "line" ]; then
+		elif [ ${checkMethod} = "line" ]; then
 			# If both input and output file exists
 			if [ ! -r ${input_file} ]; then
 				errFunct 3 ${input_file}
@@ -112,19 +128,29 @@ else
 				done
 
 				if [ ${isFailedTest} -eq 1 ]; then
-					echo -e "Test ${tst} produced errors!!\n\n"
+					echo -e "Test ${tst} produced errors!!"
 				else
-					echo -e "Test ${tst} finished with no errors.\n\n"
+					echo -e "Test ${tst} finished with no errors."
 				fi
 			fi
-		elif [ ${#} -eq 3 -a ${3} == "test" ]; then
+		fi
+		
+		if [ ${checkValgrind} -eq 1 ]; then
 			if [ ! -r ${input_file} ]; then
 				errFunct 3 ${input_file}
 			elif [ ! -r ${output_file} ]; then
 				errFunct 4 ${output_file}
 			else
-				echo "Test only"	
+				leak_Test="$(valgrind -q --error-exitcode=1 --leak-check=full ${programParam} < ${input_file})"	
+				exit_state=${?}				
+
+				if [ ${exit_state} -eq 1 ]; then
+					echo "Test ${tst} has a memory leak!!!!!"
+				elif [ ${exit_state} -eq 0 ]; then
+					echo "Test ${tst} no memory was leaked."
+				fi
 			fi
 		fi
+		echo -e "\n"
 	done < ${1}
 fi
