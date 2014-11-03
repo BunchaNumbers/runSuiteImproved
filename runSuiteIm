@@ -1,0 +1,130 @@
+#!/bin/bash
+#runSuite: bash script for future testing of programs
+
+errFunct(){
+	if [ ${1} -eq 2 ]; then
+		echo "${0} Wrong number of arguments." >&2
+		exit 2
+	elif [ ${1} -eq 3 ]; then
+		echo "${0} Cannot read file ${2} or it does not exist." >&2
+		exit 3
+	elif [ ${1} -eq 4]; then
+		echo "${0} Cannot read file ${2} or it does not exist." >&2
+		exit 4
+	else
+		echo "${0} An error occured." >&2
+                exit 1
+	fi
+}
+
+if [ \( ${#} -lt 2 \) -o \( ${#} -gt 3 \) ]; then
+	errFunct 2
+else
+	while read tst; do
+		input_file=${tst}.in
+		output_file=${tst}.out
+		programParam=${2}
+
+		if [ -r ${tst}.args ]; then
+			programParam="${2} `cat "${tst}.args"`"
+		fi
+		
+		if [ ${#} -eq 2 ]; then
+			if [ ! -r ${input_file} ]; then
+				errFunct 3 ${input_file}
+			elif [ ! -r ${output_file} ]; then
+				errFunct 4 ${output_file}
+			else
+				prog_Result="`${programParam} < ${input_file}`"
+				if [ ! "${prog_Result}" = "`cat ${output_file}`" ]; then
+					echo "Test failed: ${tst}"
+					echo "Input:"
+					echo "`cat ${input_file}`"
+					echo "Expected:"
+					echo "`cat ${output_file}`"
+					echo "Actual:"
+					echo "${prog_Result}"
+					echo " "
+					echo "Test ${tst} produced errors!"
+					echo " "
+				else
+					echo "Test ${tst} finished with no errors."
+					echo " "
+				fi
+			fi
+		elif [ ${#} -eq 3 -a ${3} = "line" ]; then
+			# If both input and output file exists
+			if [ ! -r ${input_file} ]; then
+				errFunct 3 ${input_file}
+			elif [ ! -r ${output_file} ]; then
+				errFunct 4 ${output_file}
+			else
+				#Store the result of the program in a variable
+				prog_Result="$(${programParam} < ${input_file})"
+				#Store the expected result in a variable
+				expected_Result="$(cat ${output_file})"
+
+				
+			
+				# Counters to see which of the above variable has more lines
+				prog_Counter="$(echo ${prog_Result} | wc -w)"
+				expected_Counter="$(echo ${expected_Result} | wc -w)"
+				
+				# Sets the counter to the higher number
+				if [ ${prog_Counter} -lt ${expected_Counter} ]; then
+					counter=${expected_Counter}
+				else
+					counter=${prog_Counter}
+				fi
+				
+				isFailedTest=0
+					
+				#Loop through the results variables
+				#This is the line by line comparison
+				for (( i=1; i<=${counter}; i++ )); do
+					prog_Line="$(echo ${prog_Result} | awk -v N=$i '{print $N}')"
+					expected_Line="$(echo ${expected_Result} | awk -v N=$i '{print $N}')"
+					
+					if [ "${prog_Line}" != "${expected_Line}" ]; then
+						if [ ${isFailedTest} -eq 0 ]; then
+							#State the test that failed
+							echo -e "Test failed: ${tst}\n"
+							
+							#Display the inputfile
+							echo -e "Input: $(cat ${input_file})\n"
+														
+							#What the output format is
+							echo -e "Error format: Output -> Expected"
+							isFailedTest=1
+						fi
+						
+						#Check if prog_Line is null
+						if [ -z "${prog_Line}" ]; then
+							prog_Line="NULL"
+						fi
+			
+						#Check if expected_Line is null
+						if [ -z "${expected_Line}" ]; then
+							expected_Line="NULL"
+						fi
+						printf "%-10s ${prog_Line} -> ${expected_Line}\n" "Line ${i}:"
+					fi
+				done
+
+				if [ ${isFailedTest} -eq 1 ]; then
+					echo -e "Test ${tst} produced errors!!\n\n"
+				else
+					echo -e "Test ${tst} finished with no errors.\n\n"
+				fi
+			fi
+		elif [ ${#} -eq 3 -a ${3} == "test" ]; then
+			if [ ! -r ${input_file} ]; then
+				errFunct 3 ${input_file}
+			elif [ ! -r ${output_file} ]; then
+				errFunct 4 ${output_file}
+			else
+				echo "Test only"	
+			fi
+		fi
+	done < ${1}
+fi
